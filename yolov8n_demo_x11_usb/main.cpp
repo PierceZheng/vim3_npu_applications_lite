@@ -53,15 +53,13 @@ using namespace cv;
 
 
 struct option longopts[] = {
-	{ "device",         required_argument,  NULL,   'd' },
-	{ "width",          required_argument,  NULL,   'w' },
-	{ "height",         required_argument,  NULL,   'h' },
+	{ "input",          required_argument,  NULL,   'i' },
 	{ "model",          required_argument,  NULL,   'm' },
 	{ "help",           no_argument,        NULL,   'H' },
 	{ 0, 0, 0, 0 }
 };
 
-const char *device = DEFAULT_DEVICE;
+const char *input_path;
 const char *model_path;
 
 #define MAX_HEIGHT 1080
@@ -182,8 +180,8 @@ static void draw_results(cv::Mat& frame, DetectResult resultData, int img_width,
 		cv::putText(frame,resultData.result_name[i].lable_name,cvPoint(left+5,top-5),cv::FONT_HERSHEY_COMPLEX,0.5,cv::Scalar(0,0,0),1);
 	}
 
-	cv::imshow("Image Window",frame);
-	cv::waitKey(1);
+	// cv::imshow("Image Window",frame);
+	// cv::waitKey(1);
 }
 
 int run_detect_model(){
@@ -212,67 +210,47 @@ int run_detect_model(){
 
 	DetectResult resultData;
 	cv::Mat tmp_image(g_nn_width, g_nn_height, CV_8UC3);
-	cv::Mat img(height,width,CV_8UC3,cv::Scalar(0,0,0));
-	int frames = 0;
-	struct timeval time_start, time_end;
-	float total_time = 0;
+	cv::Mat img = cv::imread(input_path);
+	if(img.empty()) {
+		cout << "无法读取输入图片!" << endl;
+		return -1;
+	}
+	
+	cv::resize(img, tmp_image, tmp_image.size());
+	cv::cvtColor(tmp_image, tmp_image, cv::COLOR_BGR2RGB);
+	tmp_image.convertTo(tmp_image, CV_32FC3);
+	tmp_image = tmp_image / 255.0;
+
+	input_image_t image;
+	image.data = tmp_image.data;
+	image.width = tmp_image.cols;
+	image.height = tmp_image.rows;
+	image.channel = tmp_image.channels();
+	image.pixel_format = PIX_FMT_RGB888;
+
 	vsi_size_t stride = vsi_nn_TypeGetBytes(tensor->attr.dtype.vx_type);
 	uint8_t* input_ptr = (uint8_t*)malloc(stride * g_nn_width * g_nn_height * g_nn_channel * sizeof(uint8_t));
 	vsi_status status = VSI_FAILURE;
 
-    	cv::namedWindow("Image Window");
+	yolov8n_preprocess(image, input_ptr, g_nn_width, g_nn_height, g_nn_channel, stride, tensor);
+	status = vsi_nn_CopyDataToTensor(g_graph, tensor, input_ptr);
+	status = vsi_nn_RunGraph(g_graph);
+	yolov8n_postprocess(g_graph, &resultData);
 
-	string str = device;
-	string res = str.substr(10);
-	cv::VideoCapture cap(stoi(res));
-	cap.set(cv::CAP_PROP_FRAME_WIDTH, width);
-	cap.set(cv::CAP_PROP_FRAME_HEIGHT, height);
+	draw_results(img, resultData, img.cols, img.rows);
 
-	if (!cap.isOpened()) {
-		cout << "capture device failed to open!" << endl;
-		cap.release();
-		exit(-1);
+	string input_filename = input_path;
+	size_t last_slash = input_filename.find_last_of("/\\");
+	if(last_slash != string::npos) {
+		input_filename = input_filename.substr(last_slash + 1);
 	}
+	string output_filename = "result_" + input_filename;
+	
+	cv::imwrite(output_filename, img);
+	cout << "结果已保存至: " << output_filename << endl;
 
-	while (true) {
-		if (!cap.read(img)) {
-			cout<<"Capture read error"<<std::endl;
-			break;
-		}
-
-		cv::resize(img, tmp_image, tmp_image.size());
-		cv::cvtColor(tmp_image, tmp_image, cv::COLOR_BGR2RGB);
-		tmp_image.convertTo(tmp_image, CV_32FC3);
-		tmp_image = tmp_image / 255.0;
-
-		input_image_t image;
-		image.data      = tmp_image.data;
-		image.width     = tmp_image.cols;
-		image.height    = tmp_image.rows;
-		image.channel   = tmp_image.channels();
-		image.pixel_format = PIX_FMT_RGB888;
-		
-		gettimeofday(&time_start, 0);
-		yolov8n_preprocess(image, input_ptr, g_nn_width, g_nn_height, g_nn_channel, stride, tensor);
-
-		status = vsi_nn_CopyDataToTensor(g_graph, tensor, input_ptr);
-		status = vsi_nn_RunGraph(g_graph);
-		yolov8n_postprocess(g_graph, &resultData);
-		
-		gettimeofday(&time_end, 0);
-		draw_results(img, resultData, width, height);
-		++frames;
-		total_time += (float)((time_end.tv_sec - time_start.tv_sec) + (time_end.tv_usec - time_start.tv_usec) / 1000.0f / 1000.0f);
-
-		if (total_time >= 1.0f) {
-			int fps = (int)(frames / total_time);
-			fprintf(stderr, "Inference FPS: %i\n", fps);
-			frames = 0;
-			total_time = 0;
-		}
-    	}
 	free(input_ptr);
-    
+	
 	vnn_ReleaseYolov8n(g_graph, TRUE);
 	g_graph = NULL;
 	
@@ -281,31 +259,26 @@ int run_detect_model(){
 
 int main(int argc, char** argv){
 	int c;
-	while ((c = getopt_long(argc, argv, "d:w:h:m:H", longopts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "i:m:H", longopts, NULL)) != -1) {
 		switch (c) {
-			case 'd':
-				device = optarg;
+			case 'i':
+				input_path = optarg;
 				break;
-
-			case 'w':
-				width = atoi(optarg);
-				break;
-
-			case 'h':
-				height = atoi(optarg);
-				break;
-
 			case 'm':
-				model_path  = optarg;
+				model_path = optarg;
 				break;
-
 			default:
-				printf("%s [-d device] [-w width] [-h height] [-m model] [-H]\n", argv[0]);
+				printf("%s [-i input_image] [-m model] [-H]\n", argv[0]);
 				exit(1);
 		}
 	}
 
-	run_detect_model();
+	if(!input_path || !model_path) {
+		printf("请指定输入图片和模型路径\n");
+		printf("%s [-i input_image] [-m model] [-H]\n", argv[0]);
+		exit(1);
+	}
 
+	run_detect_model();
 	return 0;
 }
