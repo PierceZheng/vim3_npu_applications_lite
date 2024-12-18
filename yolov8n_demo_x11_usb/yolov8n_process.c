@@ -318,7 +318,7 @@ void yolov8n_postprocess(vsi_nn_graph_t *graph, pDetResult resultData)
 
     box *boxes = (box *)calloc(box1*(1+4+16), sizeof(box));
     float **probs = (float **)calloc(box1*(1+4+16), sizeof(float *));
-    FILE *fp = fopen("yolov8n_88_result.txt", "w");
+    FILE *fp = fopen("yolov8n_result.txt", "w");
     if (fp) {
         for (i = 0; i < output_len; i++) {
             fprintf(fp, "%f ", predictions[i]);

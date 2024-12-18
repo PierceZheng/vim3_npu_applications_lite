@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/yolov8n_demo_x11_usb",
-            "args": ["-i", "${workspaceFolder}/test_img.jpg", "-m", "${workspaceFolder}/nn_data/yolov8n_88.nb"],
+            "args": ["-i", "${workspaceFolder}/test_img.jpg", "-m", "${workspaceFolder}/nn_data/yolov8n.nb"],
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,

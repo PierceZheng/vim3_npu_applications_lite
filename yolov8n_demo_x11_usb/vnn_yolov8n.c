@@ -254,7 +254,7 @@ vsi_nn_graph_t * vnn_CreateYolov8n
     attr.size[2] = 40;
     attr.size[3] = 1;
     attr.dim_num = 4;
-    attr.dtype.fl = 1;
+    attr.dtype.fl = 2;
     attr.dtype.qnt_type = VSI_NN_QNT_TYPE_DFP;
     NEW_NORM_TENSOR(norm_tensor[1], attr, VSI_NN_TYPE_INT8);
 
@@ -264,7 +264,7 @@ vsi_nn_graph_t * vnn_CreateYolov8n
     attr.size[2] = 20;
     attr.size[3] = 1;
     attr.dim_num = 4;
-    attr.dtype.fl = 1;
+    attr.dtype.fl = 2;
     attr.dtype.qnt_type = VSI_NN_QNT_TYPE_DFP;
     NEW_NORM_TENSOR(norm_tensor[2], attr, VSI_NN_TYPE_INT8);
 
