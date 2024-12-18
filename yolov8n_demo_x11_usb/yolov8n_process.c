@@ -318,7 +318,16 @@ void yolov8n_postprocess(vsi_nn_graph_t *graph, pDetResult resultData)
 
     box *boxes = (box *)calloc(box1*(1+4+16), sizeof(box));
     float **probs = (float **)calloc(box1*(1+4+16), sizeof(float *));
-
+    FILE *fp = fopen("yolov8n_88_result.txt", "w");
+    if (fp) {
+        for (i = 0; i < output_len; i++) {
+            fprintf(fp, "%f ", predictions[i]);
+            if ((i + 1) % 144 == 0) {
+                fprintf(fp, "\n");
+            }
+        }
+        fclose(fp);
+    }
     yolo_v3_post_process_onescale(&predictions[0], size4, boxes, &probs[0], threshold); //final layer
     yolo_v3_post_process_onescale(&predictions[len1*16], size2, &boxes[box1*16], &probs[box1*16], threshold);
     yolo_v3_post_process_onescale(&predictions[len1*(16+4)], size,  &boxes[box1*(16+4)], &probs[box1*(16+4)], threshold);
